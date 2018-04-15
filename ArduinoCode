@@ -1,0 +1,154 @@
+#include<Wire.h>
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+
+const char* ssid = "WiFi SSID";
+const char* password = "WiFi Password";
+int status = WL_IDLE_STATUS;
+
+WiFiUDP udp;
+// This is the IP address of your InfluxDB instance
+byte host[] = {10, 1, 1, 110};
+int port = 8888;
+
+// PECMAC125A I2C address is 2A(42)
+#define Addr 0x2A
+
+unsigned int data[36];
+int typeOfSensor = 0;
+int maxCurrent = 0;
+int noOfChannel = 0;
+void setup()
+{
+  // Begin I2C communication as MASTER
+  Wire.begin();
+  // Begin Serial Communication, set baud rate = 115200
+  Serial.begin(115200);
+  delay(100);
+  Serial.println();
+  Serial.println();
+  // Begin WiFi Connection
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  // Print WiFi Connection info
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Start I2C transmission
+  Wire.beginTransmission(Addr);
+  // Command header byte-1
+  Wire.write(0x92);
+  // Command header byte-2
+  Wire.write(0x6A);
+  // Command 2 is used to read no of sensor type, Max current, No. of channel
+  Wire.write(0x02);
+  // Reserved
+  Wire.write(0x00);
+  // Reserved
+  Wire.write(0x00);
+  // Reserved
+  Wire.write(0x00);
+  // Reserved
+  Wire.write(0x00);
+  // CheckSum
+  Wire.write(0xFE);
+  // Stop I2C transmission
+  Wire.endTransmission();
+
+  // Request 6 bytes of data
+  Wire.requestFrom(Addr, 6);
+
+  // Read 6 bytes of data
+  if (Wire.available() == 6)
+  {
+    data[0] = Wire.read();
+    data[1] = Wire.read();
+    data[2] = Wire.read();
+    data[3] = Wire.read();
+    data[4] = Wire.read();
+    data[5] = Wire.read();
+  }
+
+  typeOfSensor = data[0];
+  maxCurrent = data[1];
+  noOfChannel = data[2];
+
+  // Output data to serial monitor
+  Serial.print("Type Of Sensor : ");
+  Serial.println(typeOfSensor);
+  Serial.print("Max Current : ");
+  Serial.print(maxCurrent);
+  Serial.println(" Amp");
+  Serial.print("No. Of Channel : ");
+  Serial.println(noOfChannel);
+  delay(300);
+}
+
+void loop()
+{
+  // Declaring strings for usage
+  String MacID, amp1, amp2;
+  // the MAC address is used as the unique ID
+  MacID = String(WiFi.macAddress());
+
+  for (int j = 1; j < noOfChannel + 1; j++)
+  {
+    // Start I2C Transmission
+    Wire.beginTransmission(Addr);
+    // Command header byte-1
+    Wire.write(0x92);
+    // Command header byte-2
+    Wire.write(0x6A);
+    // Command 1
+    Wire.write(0x01);
+    // Start Channel No.
+    Wire.write(j);
+    // End Channel No.
+    Wire.write(j);
+    // Reserved
+    Wire.write(0x00);
+    // Reserved
+    Wire.write(0x00);
+    // CheckSum
+    Wire.write((0x92 + 0x6A + 0x01 + j + j + 0x00 + 0x00) & 0xFF);
+    // Stop I2C Transmission
+    Wire.endTransmission();
+    delay(500);
+
+    // Request 3 bytes of data
+    Wire.requestFrom(Addr, 3);
+
+    // Read 3 bytes of data
+    // msb1, msb, lsb
+    int msb1 = Wire.read();
+    int msb = Wire.read();
+    int lsb = Wire.read();
+    float current = (msb1 * 65536) + (msb * 256) + lsb;
+
+    // Convert the data to ampere
+    current = current / 1000;
+
+    //Moving the Current amp value into a srtring variable
+    amp2 = String(current);
+    //Building the string that will be sent to InfluxDB
+    amp1 = String(String(MacID) + " amp=" + amp2);
+    
+    //Print the current usage
+    Serial.println(amp1);
+    
+    //Sendng data to influxDB
+    udp.beginPacket(host, port);
+    udp.print(amp1);
+    udp.endPacket();
+    //Wait 1 second
+    delay(1000);
+
+  }
+}
