@@ -11,3 +11,4 @@ Requirements
 
 
 Power Meter-1523816441559.json <- this is the JSON file you can use to import the dashboard into Grafana.
+Images Direcotry - In there I have several screen shots of the dashboard and the settings used.
