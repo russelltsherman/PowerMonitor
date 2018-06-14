@@ -12,3 +12,8 @@ Requirements
 
 Power Meter-1523816441559.json <- this is the JSON file you can use to import the dashboard into Grafana.
 Images Direcotry - In there I have several screen shots of the dashboard and the settings used.
+
+
+`https://www.reddit.com/r/homelab/comments/8r3w0f/homebrew_power_monitor_for_rack/`
+`https://www.thingiverse.com/thing:2961022`
+`https://grafana.iceboxserver.com/d/P4bdxQmik/power-meter?refresh=5m&orgId=1`
